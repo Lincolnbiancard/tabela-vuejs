@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vue.js Campeonato Brasileiro 2020</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <style type="text/css">
+        .emblem{
+            height: 30px;
+            width:  30px;
+        }
+    </style>
+</head>
+<body>
+    
+    <div id="app" class="container">
+        <div class="row">
+            <h3>Campeonato Brasileiro - Séria A - 2020</h3>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <button class="btn btn-primary" @click="CreateNewGame">Novo Jogo</button>
+            </div>
+        </div>
+        <br>
+        <div class="row">
+            <div class="col-md-12" v-show="View == 'scoreboard'">
+                <form class="form-inline">
+                    <div class="form-group">
+                        <!-- Time da casa -->
+                        <img :src="NewGame.Home.team.emblem ? NewGame.Home.team.emblem: ''" alt="emblem">
+                        {{NewGame.Home.team.name ? NewGame.Home.team.name: ''}}
+                        <input type="text" class="form-control" v-model="NewGame.Home.goals">
+                        <b>X</b>
+                        <!-- Time visitante -->
+                        <input type="text" class="form-control" v-model="NewGame.Visitant.goals">
+                        <img :src="NewGame.Visitant.team.emblem ? NewGame.Visitant.team.emblem: ''" alt="emblem">
+                        {{NewGame.Visitant.team.name ? NewGame.Visitant.team.name: ''}}
+                    </div>
+                    <button type="button" class="btn btn-primary" @click="endGame">Fim de Jogo</button>
+                </form>
+            </div>
+            
+            <div class="col-md-12" v-show="View == 'table'">
+                    <i class="glyphicon glyphicon-zoom-in" aria-hidden="true"></i>
+                    <input class="form-control form-control-sm ml-3 w-75" type="text" placeholder="Pesquise um Time"
+                        aria-label="Search" v-model="search">
+                <!-- Tabela do campeonato -->
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>
+                                Name
+                            </th>
+                            <th v-for="(column, index) in order.columns">
+                                <a href="#" @click.prevent="Order(index)">{{column | ucwords}}</a>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="team in orderTeams">
+                            <td>
+                                <img :src="team.emblem ? team.emblem: ''" class="emblem">
+                                {{team.name | ucwords}}
+                            </td>
+                            <td>
+                                {{team.points}}
+                            </td>
+                            <td>
+                                {{team.gm}}
+                            </td>
+                            <td>
+                                {{team.gs}}
+                            </td>
+                            <!-- <td>
+                                {{team | balance}}
+                            </td> -->
+                            <td>
+                                {{team.balance}}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <!-- Fim Tabela do campeonato -->
+
+                <h3>Times Classificados Para Libertadores</h3>
+                <ul>
+                    <li v-for="team in teamsLibertadores">
+                        <img :src="team.emblem ? team.emblem: ''" class="emblem">
+                        {{team.name | ucwords}}
+                    </li>
+                </ul>
+                <br>
+                <h3>Times na Zona De Rebaixamento</h3>
+                <ul>
+                    <li v-for="team in relegationZone">
+                        <img :src="team.emblem ? team.emblem: ''" class="emblem">
+                        {{team.name | ucwords}}
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- development version, includes helpful console warnings -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.17/dist/vue.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.15/lodash.min.js"></script>
+    
+    <script>
+        class Team { //ES6
+            constructor(name, emblem) {
+                this.name       = name;
+                this.emblem     = emblem;
+                this.points     = 0;
+                this.gm         = 0;
+                this.gs         = 0;
+                this.balance    = 0;
+            }
+
+            endGame(teamVisitant, goalsScored, concededGoals) {
+                if(this.itWasDraw(goalsScored, concededGoals)){
+                    console.log('foi empate!');                    this.draw(goalsScored, concededGoals);
+                    teamVisitant.draw(goalsScored, concededGoals);
+                    return;
+                }
+                if(this.itWasVictory(goalsScored, concededGoals)) {
+                    console.log('foi vitória!');   
+                    this.victory(goalsScored, concededGoals);
+                    teamVisitant.defeat(concededGoals, goalsScored);
+                    return;
+                }else {
+                    console.log('foi derrota!');   
+                    this.defeat(goalsScored, concededGoals);
+                    teamVisitant.victory(concededGoals, goalsScored);
+                }
+            }
+            itWasDraw(goalsScored, concededGoals) {
+                return goalsScored === concededGoals;
+            }
+            itWasVictory(goalsScored, concededGoals) {
+                return goalsScored > concededGoals;
+            }
+            draw(goalsScored, concededGoals) {
+                this.updateInfos(1, goalsScored, concededGoals);
+            }
+            victory(goalsScored, concededGoals) {
+                this.updateInfos(3, goalsScored, concededGoals);
+            }
+            defeat(goalsScored, concededGoals) {
+                this.updateInfos(0, goalsScored, concededGoals);
+            }
+
+            updateInfos(points, goalsScored, concededGoals){
+                this.points     += points;
+                this.gm         += goalsScored;
+                this.gs         += concededGoals;
+                this.balance     = goalsScored-concededGoals;
+            }
+        }
+
+        new Vue({
+            el: "#app",
+            data: {
+              goals: '3',
+              order: {
+                columns: ['points', 'gm', 'gs', 'balance'],
+                ordination: ['desc', 'desc', 'asc', 'desc'],
+              },
+              search: '',
+              teams: [
+                new Team('palmeiras', 'assets/palmeiras_60x60.png'),
+                new Team('Internacional', 'assets/internacional_60x60.png'),
+                new Team('Flamengo', 'assets/flamengo_60x60.png'),
+                new Team('Atlético-MG', 'assets/atletico_mg_60x60.png'),
+                new Team('Santos', 'assets/santos_60x60.png'),
+                new Team('Botafogo', 'assets/botafogo_60x60.png'),
+                new Team('Atlético-PR', 'assets/atletico-pr_60x60.png'),
+                new Team('Corinthians', 'assets/corinthians_60x60.png'),
+                new Team('Grêmio', 'assets/gremio_60x60.png'),
+                new Team('Fluminense', 'assets/fluminense_60x60.png'),
+                new Team('Bahia', 'assets/bahia_60x60.png'),
+                new Team('Chapecoense', 'assets/chapecoense_60x60.png'),
+                new Team('São Paulo', 'assets/sao_paulo_60x60.png'),
+                new Team('Cruzeiro', 'assets/cruzeiro_60x60.png'),
+                new Team('Sport', 'assets/sport_60x60.png'),
+                new Team('Ceará', 'assets/ceara_60x60.png'),
+                new Team('Vitória', 'assets/victory_60x60.png'),
+                new Team('Vasco', 'assets/vasco_60x60.png'),
+                new Team('América-MG', 'assets/america_mg_60x60.png'),
+                new Team('Paraná', 'assets/parana_60x60.png'),
+                ],
+                NewGame: {
+                    Home: {
+                        team:   '',
+                        goals:  0
+                    },
+                    Visitant: {
+                        team:   '',
+                        goals:  0
+                    }
+                },
+                View: 'table'
+            },
+            computed: {
+                teamsLibertadores(){
+                    return this.teams.slice(0,6);
+                },
+                relegationZone(){
+                    return this.teams.slice(16,20);
+                },
+                orderTeams(){
+                    let teams   =  _.orderBy(this.teams, this.order.columns, this.order.ordination);
+                    let self    = this;   
+                    return _.filter(teams, function(team){
+                        let search = self.search.toLowerCase();
+                        return team.name.toLowerCase().indexOf(search) >= 0;
+                    });
+                }
+            },
+            methods: {
+                CreateNewGame() {
+                    var indexHome                 = Math.floor(Math.random() * 20), 
+                        indexVisitant             = Math.floor(Math.random() * 20);
+                    this.NewGame.Home.team        = this.teams[indexHome];
+                    this.NewGame.Home.goals       = 0;
+                    this.NewGame.Visitant.team    = this.teams[indexVisitant];
+                    this.NewGame.Visitant.goals   = 0; 
+                    this.View                     = 'scoreboard';
+                },
+                endGame(){
+                    console.log('chamou o end game!');
+                    var goalsScored         = parseInt(this.NewGame.Home.goals);
+                    var concededGoals       = parseInt(this.NewGame.Visitant.goals);
+                    var teamVisitant        = this.NewGame.Visitant.team;
+                    var teamHouse           = this.NewGame.Home.team;
+                    teamHouse.endGame(teamVisitant, goalsScored, concededGoals);
+                    this.View               = 'table';
+                },
+                Order(index){
+                    // this.order.ordination[index] = this.order.ordination[index] == 'desc' ? 'asc': 'desc';
+                    this.$set(this.order.ordination, index, this.order.ordination[index] == 'desc' ? 'asc': 'desc');
+                }
+            },
+            filters: {
+                    balance(team){
+                        return parseInt(team.gm) - parseInt(team.gs);
+                    },
+                    ucwords(value){
+                        return value.charAt(0).toUpperCase() + value.slice(1);
+                    }
+                }
+        })
+    </script>
+</body>
+</html>
